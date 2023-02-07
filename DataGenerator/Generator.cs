@@ -11,7 +11,7 @@ namespace DataGenerator
     /// </summary>
     class Generator
     {
-        private const string OUTPUT_NAME = "TestData.txt";
+        private static string OUTPUT_NAME = "TestData.txt";
         private const long FIXED_SIZE = 1024 * 1024 * 1024;
         private const long AVERAGE_LINE_SIZE = 18;
         private const long FIXED_RECORD_SIZE = sizeof(uint) + sizeof(char) * AVERAGE_LINE_SIZE;
@@ -32,7 +32,10 @@ namespace DataGenerator
             try 
             {
                 uint size = uint.Parse(args[0]);
-                long chunksize2 = (long)Math.Floor(Math.Log10(size) * 100);
+                if(args.Length > 1)
+                {
+                    OUTPUT_NAME = args[1];
+                }
                 Console.WriteLine("Generating data it can take a while.");
                 var generator = new Generator();
                 Benchmark<uint>.Check(generator.GenerateDataInChunksAndMerge, size);
@@ -58,11 +61,11 @@ namespace DataGenerator
         public void GenerateDataInChunksAndMerge(uint givenSize)
         {
             long numberOfRecordsToGenerate = (givenSize * FIXED_SIZE) / FIXED_RECORD_SIZE;
-            long chunkSize = (numberOfRecordsToGenerate/64);
+            long chunkSize = (long)Math.Floor(Math.Log10(numberOfRecordsToGenerate) * 1024*1024); //~~300mb
             long numberOfChunks = numberOfRecordsToGenerate / chunkSize;
-
-            Parallel.For(0, numberOfChunks, new ParallelOptions { MaxDegreeOfParallelism = 4 }, chunkIndex =>
-            //for (int chunkIndex = 0; chunkIndex < numberOfChunks; chunkIndex++) // We can't do faster than I/O anyways.
+            
+            Parallel.For(0, numberOfChunks, new ParallelOptions() { MaxDegreeOfParallelism = 8}, chunkIndex =>
+            //for (int chunkIndex = 0; chunkIndex < numberOfChunks; chunkIndex++) // We can't do faster than I/O anyways. ? 
             {    
                 var startIndex = chunkIndex * chunkSize;
                 var endIndex = Math.Min(startIndex + chunkSize, numberOfRecordsToGenerate);
@@ -120,7 +123,9 @@ namespace DataGenerator
                         while (!sr.EndOfStream)
                         {
                             string line = sr.ReadLine();
-                            mergedSw.WriteLine(line);
+                            
+                                mergedSw.WriteLine(line);
+                            
                         }
                     }
                     File.Delete(chunkOutputName);

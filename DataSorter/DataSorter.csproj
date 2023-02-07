@@ -73,7 +73,7 @@
   <ItemGroup>
     <Compile Include="Algorithms\MergeSort.cs" />
     <Compile Include="Algorithms\QuickSort.cs" />
-    <Compile Include="Banchmark.cs" />
+    <Compile Include="Benchmark.cs" />
     <Compile Include="ExternalSorter.cs" />
     <Compile Include="MinHeap.cs" />
     <Compile Include="Properties\AssemblyInfo.cs" />

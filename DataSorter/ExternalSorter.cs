@@ -12,23 +12,17 @@ namespace DataSorter
     class ExternalSorter
     {
         private const int AVERAGE_LINE_SIZE = 18;
-        private const int CHUNK_SIZE = 1024 * 1024 * 4; // 4 MB
+        private const int CHUNK_SIZE = 1024 * 1024 * 100; // 100 MB
         private const int ESTIMATED_LINES_IN_CHUNK = CHUNK_SIZE / AVERAGE_LINE_SIZE;
 
         static void Main(string[] args)
         {
-            string inputFile = "TestData.txt";
+            string inputFile = "TestData.txt"; //todo add as parameter
             string outputFile = "output.txt";
 
-            // Load and divide the file into chunks
-
-            List<string> chunkFiles = Banchmark<string, int, List<string>>.Check(DivideDataIntoChunks,inputFile, CHUNK_SIZE);
-
-            // Sort and write each chunk to a separate file
-            Banchmark<List<string>, int, object>.Check(SortAndWriteChunksToFile, chunkFiles, CHUNK_SIZE);
-
-            // Merge the sorted chunks into a single file
-            Banchmark<List<string>, int, object>.Check(MergeChunksIntoFile, chunkFiles, outputFile);
+            List<string> chunkFiles = Benchmark<string, int, List<string>>.Check(DivideDataIntoChunks,inputFile, CHUNK_SIZE);
+            Benchmark<List<string>, int, object>.Check(SortAndWriteChunksToFile, chunkFiles, CHUNK_SIZE);
+            Benchmark<List<string>, int, object>.Check(MergeChunksIntoFile, chunkFiles, outputFile);
 
             Console.WriteLine($"Succesful finish. Output saved to: {outputFile}. Press any key to close.");
             Console.ReadLine();
@@ -85,14 +79,13 @@ namespace DataSorter
 
         private static void SortAndWriteChunksToFile(List<string> chunkFiles, int chunkSize)
         {
-            //Parallel.ForEach(chunkFiles, chunkFile => //todo with max limit of paralelism 
-            foreach(var chunkFile in chunkFiles)
+            Parallel.ForEach(chunkFiles,new ParallelOptions() {MaxDegreeOfParallelism = 8}, chunkFile => 
+            //foreach(var chunkFile in chunkFiles)
             {
-                //var records = TryParseRecordsSafe(chunkFile);
-                var records = File.ReadAllLines(chunkFile).Select(r => Record.ParseRecord(r)).ToList();
+                var records = TryParseRecordsSafe(chunkFile);
                 records.Sort();
                 WriteRecordsToChunkFile(chunkFile, records);
-            }//);
+            });
         }
 
         private static List<Record> TryParseRecordsSafe(string chunkFile)
@@ -128,7 +121,6 @@ namespace DataSorter
 
         private static void MergeChunksIntoFile(List<string> chunkFiles, string outputFile)
         {
-            // Create a list of StreamReaders, one for each chunk file
             List<StreamReader> chunkReaders = chunkFiles.Select(file => new StreamReader(file)).ToList();
 
             // Initialize a min heap with the first line from each chunk
@@ -170,7 +162,7 @@ namespace DataSorter
             {
                 reader.Close();
             }
-
+            // Clean up chunks
             foreach (var chunkFile in chunkFiles)
             {
                 File.Delete(chunkFile);
