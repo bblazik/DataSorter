@@ -1,8 +1,4 @@
 ﻿using System;
-using System.Collections.Generic;
-using System.Linq;
-using System.Text;
-using System.Threading.Tasks;
 
 namespace DataSorter
 {
@@ -13,24 +9,23 @@ namespace DataSorter
 
         public int ChunkIndex { get; set; }
 
-        public int CompareTo(Record y)
+        public int CompareTo(Record other)
         {
-            int nameCompare = string.Compare(this.Name.Split(' ')[0], y.Name.Split(' ')[0]);
+            int nameCompare = string.Compare(this.Name.Split(' ')[0], other.Name.Split(' ')[0]);
             if (nameCompare == 0)
             {
-                return this.Number.CompareTo(y.Number);
+                return this.Number.CompareTo(other.Number);
             }
             return nameCompare;
         }
 
         public override string ToString()
         {
-            return $"{Number}. {Name}";
+            return string.Format($"{Number}. {Name}\n");
         }
 
         public static Record ParseRecord(string line)
         {
-            //todo add exception. 
             try {
                 var recordParams = line.Split(new string[] { ". " }, StringSplitOptions.None);
                 return new Record() { Number = uint.Parse(recordParams[0]), Name = recordParams[1] };
@@ -39,7 +34,6 @@ namespace DataSorter
             {
                 throw new Exception("Invalid record parse" + e);
             }
-            
         }
     }
 }

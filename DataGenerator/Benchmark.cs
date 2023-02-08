@@ -1,28 +1,29 @@
 ﻿using System;
 using System.Diagnostics;
-using System.Threading;
 
 namespace DataGenerator
 {
-    public class Benchmark<T> where T : struct
+    public class Benchmark
     {
-        public static void Check(Action<T> x, T param)
+        public static TimeSpan Check<T>(Action<T> action, T param)
         {
-            Stopwatch stopWatch = new Stopwatch();
+            var stopWatch = new Stopwatch();
             stopWatch.Start();
 
-            x(param);
+            action(param);
 
             stopWatch.Stop();
             // Get the elapsed time as a TimeSpan value.
-            TimeSpan ts = stopWatch.Elapsed;
+            var ts = stopWatch.Elapsed;
 
             // Format and display the TimeSpan value. 
-            string elapsedTime = String.Format("{0:00}:{1:00}:{2:00}.{3:00}",
+            var elapsedTime = String.Format("{0:00}:{1:00}:{2:00}.{3:00}",
                 ts.Hours, ts.Minutes, ts.Seconds,
                 ts.Milliseconds / 10);
-            Console.WriteLine(x.Method.Name);
+            Console.WriteLine(action.Method.Name);
             Console.WriteLine("RunTime " + elapsedTime);
+
+            return ts;
         }
     }
 }

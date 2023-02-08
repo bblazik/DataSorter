@@ -9,87 +9,82 @@ namespace DataGenerator
     /// Class is used to generate sample test dataset.
     /// Usage: DataGenerator <size in GB> eg.: DataGenerator.exe 10
     /// </summary>
-    class Generator
+    public class Generator
     {
-        private static string OUTPUT_NAME = "TestData.txt";
-        private const long FIXED_SIZE = 1024 * 1024 * 1024;
-        private const long AVERAGE_LINE_SIZE = 18;
-        private const long FIXED_RECORD_SIZE = sizeof(uint) + sizeof(char) * AVERAGE_LINE_SIZE;
-
-        public int _index { get; set; } = 0;
-        object lockObject = new object();
-        private object _lock = new object();
+        private const long BYTES_IN_1GB = 1024 * 1024 * 1024;
+        private const long AVERAGE_LINE_LENGTH = 19;
+        private const long AVERAGE_RECORD_SIZE_IN_BYTES = sizeof(uint) + sizeof(char) * AVERAGE_LINE_LENGTH;
+        private static string _outputName = "TestData.txt";
+        private static object _lockObject = new object();
+        private static object _lock = new object();
+        private int _index = 0;
 
         static void Main(string[] args)
         {
-            if(args.Length == 0)
+            if (args.Length == 0)
             {
                 Console.WriteLine("Give size argument in megabytes eg.: 5");
                 Console.ReadLine();
                 return;
             }
 
-            try 
+            try
             {
-                uint size = uint.Parse(args[0]);
-                if(args.Length > 1)
+                var size = uint.Parse(args[0]);
+                if (args.Length > 1)
                 {
-                    OUTPUT_NAME = args[1];
+                    _outputName = args[1];
                 }
                 Console.WriteLine("Generating data it can take a while.");
                 var generator = new Generator();
-                Benchmark<uint>.Check(generator.GenerateDataInChunksAndMerge, size);
+                Benchmark.Check(generator.GenerateDataInChunksAndMerge, size);
                 Console.WriteLine("Succesfull operation. File was Generated. Press any key to close.");
                 Console.ReadLine();
-            } 
-            catch(Exception e)
+            }
+            catch (Exception e)
             {
                 Console.WriteLine("Something went wrong.");
                 Console.WriteLine(e);
                 Console.ReadLine();
             }
-            
         }
 
         /// <summary>
         /// This method is mmemory safe until you set chunk size lower than available memory.
         /// Performance is linked with good parametrization.
         /// </summary>
-        /// <param name="givenSize">Give size in megabytes</param>
+        /// <param name="givenSize">Give size in gigabytes</param>
         /// <output>Will generate a file of test data with accurcy to about one megabyte</output>
 
-        public void GenerateDataInChunksAndMerge(uint givenSize)
+        public void GenerateDataInChunksAndMerge(uint givenSizeInGB)
         {
-            long numberOfRecordsToGenerate = (givenSize * FIXED_SIZE) / FIXED_RECORD_SIZE;
-            long chunkSize = (long)Math.Floor(Math.Log10(numberOfRecordsToGenerate) * 1024*1024); //~~300mb
-            long numberOfChunks = numberOfRecordsToGenerate / chunkSize;
-            
-            Parallel.For(0, numberOfChunks, new ParallelOptions() { MaxDegreeOfParallelism = 8}, chunkIndex =>
-            //for (int chunkIndex = 0; chunkIndex < numberOfChunks; chunkIndex++) // We can't do faster than I/O anyways. ? 
-            {    
-                var startIndex = chunkIndex * chunkSize;
-                var endIndex = Math.Min(startIndex + chunkSize, numberOfRecordsToGenerate);
-                using (MemoryStream ms = new MemoryStream())
-                using (StreamWriter sw = new StreamWriter(ms))
-                {
-                    Parallel.For(startIndex, endIndex, i => // Optimize time of object creation.
-                    {
-                        var record = CreateRecord();
-                        
-                        lock (lockObject)
-                        {
-                            sw.Write(record.ToString());
-                        }
-                    });
+            long numberOfChunks = givenSizeInGB + 1;
+            long chunkSizeInBytes = (givenSizeInGB * BYTES_IN_1GB) / numberOfChunks;
+            long numberOfRecordToCreateInChunk = chunkSizeInBytes / AVERAGE_RECORD_SIZE_IN_BYTES;
+
+            Parallel.For(0, numberOfChunks, new ParallelOptions() { MaxDegreeOfParallelism = 4 }, chunkIndex =>
+             {
+                 using (var ms = new MemoryStream())
+                 using (var sw = new StreamWriter(ms))
+                 {
+                     Parallel.For(0, numberOfRecordToCreateInChunk, i => // Optimize time of object creation.
+                     {
+                         var record = CreateRecord();
+
+                         lock (_lockObject)
+                         {
+                             sw.Write(record.ToString());
+                         }
+                     });
 
                     // Write the memory stream to a file
-                    using (FileStream fs = new FileStream(OUTPUT_NAME + chunkIndex, FileMode.Create, FileAccess.Write))
+                    using (var fs = new FileStream(_outputName + chunkIndex, FileMode.Create, FileAccess.Write, FileShare.None, bufferSize: 4096))
                     {
-                        ms.WriteTo(fs);
+                         ms.WriteTo(fs);
                     }
-                }
-            });
-            MergeFiles(OUTPUT_NAME, numberOfChunks, chunkFormat: OUTPUT_NAME + "{0}");
+                 }
+             });
+            MergeFiles(_outputName, numberOfChunks, chunkFormat: _outputName + "{0}");
         }
 
         private Record CreateRecord()
@@ -111,21 +106,19 @@ namespace DataGenerator
 
         private void MergeFiles(string mergedOutputName, long numberOfChunks, string chunkFormat)
         {
-            using (FileStream mergedFs = new FileStream(mergedOutputName, FileMode.Create, FileAccess.Write, FileShare.None, bufferSize: 4096, useAsync: true))
-            using (StreamWriter mergedSw = new StreamWriter(mergedFs))
+            using (var mergedFs = new FileStream(mergedOutputName, FileMode.Create, FileAccess.Write, FileShare.None, bufferSize: 65536, useAsync: true))
+            using (var mergedSw = new StreamWriter(mergedFs))
             {
                 for (long i = 0; i < numberOfChunks; i++)
                 {
-                    string chunkOutputName = string.Format(chunkFormat, i);
-                    using (FileStream fs = new FileStream(chunkOutputName, FileMode.Open, FileAccess.Read, FileShare.None, bufferSize: 4096, useAsync: true))
-                    using (StreamReader sr = new StreamReader(fs))
+                    var chunkOutputName = string.Format(chunkFormat, i);
+                    using (var fs = new FileStream(chunkOutputName, FileMode.Open, FileAccess.Read, FileShare.None, bufferSize: 65536, useAsync: true))
+                    using (var sr = new StreamReader(fs))
                     {
                         while (!sr.EndOfStream)
                         {
-                            string line = sr.ReadLine();
-                            
-                                mergedSw.WriteLine(line);
-                            
+                            var line = sr.ReadLine();
+                            mergedSw.WriteLine(line);
                         }
                     }
                     File.Delete(chunkOutputName);

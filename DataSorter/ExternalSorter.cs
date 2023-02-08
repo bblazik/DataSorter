@@ -3,47 +3,70 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
-using HPCsharp;
-using DStruct;
 using DataGenerator;
 
 namespace DataSorter
 {
-    class ExternalSorter
+    public class ExternalSorter
     {
-        private const int AVERAGE_LINE_SIZE = 18;
-        private const int CHUNK_SIZE = 1024 * 1024 * 100; // 100 MB
-        private const int ESTIMATED_LINES_IN_CHUNK = CHUNK_SIZE / AVERAGE_LINE_SIZE;
+        private const int AVERAGE_LINE_LENGTH = 19;
+        private const long AVERAGE_RECORD_SIZE_IN_BYTES = sizeof(uint) + sizeof(char) * AVERAGE_LINE_LENGTH;
+        private static long _chunkSizeInBytes;
+        private static long _numberOfRecordToCreateInChunk;
+        private static string _inputFile = "TestData.txt";
+        private static string _outputFile = "output.txt";
 
         static void Main(string[] args)
         {
-            string inputFile = "TestData.txt"; //todo add as parameter
-            string outputFile = "output.txt";
-
-            List<string> chunkFiles = Benchmark<string, int, List<string>>.Check(DivideDataIntoChunks,inputFile, CHUNK_SIZE);
-            Benchmark<List<string>, int, object>.Check(SortAndWriteChunksToFile, chunkFiles, CHUNK_SIZE);
-            Benchmark<List<string>, int, object>.Check(MergeChunksIntoFile, chunkFiles, outputFile);
-
-            Console.WriteLine($"Succesful finish. Output saved to: {outputFile}. Press any key to close.");
-            Console.ReadLine();
+            try
+            {
+                if (args.Length == 2)
+                {
+                    _inputFile = args[0];
+                    _outputFile = args[1];
+                }
+                Console.WriteLine($"Sort process started. InputFile: {_inputFile}, OutputFile: {_outputFile}");
+                Run();
+                Console.WriteLine($"Succesful finish. Output saved to: {_outputFile}. Press any key to close.");
+                Console.ReadLine();
+            }
+            catch (Exception e)
+            {
+                Console.WriteLine("Something went wrong.");
+                Console.WriteLine(e);
+                Console.ReadLine();
+            }
         }
 
-        private static List<string> DivideDataIntoChunks(string inputFile, int chunkSize)
+        public static void Run()
         {
-            List<string> chunkFiles = new List<string>();
-            int chunkNumber = 0;
+            var sizeOfFileInBytes = new FileInfo(_inputFile).Length;
+            var sizeOfFileInGB = (int)Math.Round((double)sizeOfFileInBytes / (1024 * 1024 * 1024));
+            var numberOfChunks = sizeOfFileInGB + 2;
+            _chunkSizeInBytes = sizeOfFileInBytes / numberOfChunks;
+            _numberOfRecordToCreateInChunk = _chunkSizeInBytes / AVERAGE_RECORD_SIZE_IN_BYTES; 
+
+            List<string> chunkFiles = Benchmark.Check(DivideDataIntoChunks, _inputFile);
+            Benchmark.Check(SortAndWriteChunksToFile, chunkFiles);
+            Benchmark.Check(MergeChunksIntoFile, chunkFiles);
+        }
+
+        private static List<string> DivideDataIntoChunks(string inputFile)
+        {
+            var chunkFiles = new List<string>();
+            var chunkNumber = 0;
 
             using (var input = new FileStream(inputFile, FileMode.Open, FileAccess.Read))
             using (var reader = new StreamReader(input))
             {
                 string line;
-                List<string> lines = new List<string>();
+                var lines = new List<string>();
                 while ((line = reader.ReadLine()) != null)
                 {
                     lines.Add(line);
 
                     // If the current chunk has reached the specified size, write it to a file and clear memory.
-                    if (lines.Count >= ESTIMATED_LINES_IN_CHUNK)
+                    if (lines.Count >= _numberOfRecordToCreateInChunk)
                     {
                         chunkFiles.Add(WriteChunkToFile(lines, chunkNumber));
                         chunkNumber++;
@@ -77,10 +100,9 @@ namespace DataSorter
             return chunkFile;
         }
 
-        private static void SortAndWriteChunksToFile(List<string> chunkFiles, int chunkSize)
+        private static void SortAndWriteChunksToFile(List<string> chunkFiles)
         {
-            Parallel.ForEach(chunkFiles,new ParallelOptions() {MaxDegreeOfParallelism = 8}, chunkFile => 
-            //foreach(var chunkFile in chunkFiles)
+            Parallel.ForEach(chunkFiles,new ParallelOptions() {MaxDegreeOfParallelism = 4}, chunkFile => 
             {
                 var records = TryParseRecordsSafe(chunkFile);
                 records.Sort();
@@ -114,12 +136,12 @@ namespace DataSorter
             {
                 foreach (Record record in records)
                 {
-                    sw.WriteLine(record.ToString());
+                    sw.Write(record.ToString());
                 }
             }
         }
 
-        private static void MergeChunksIntoFile(List<string> chunkFiles, string outputFile)
+        private static void MergeChunksIntoFile(List<string> chunkFiles)
         {
             List<StreamReader> chunkReaders = chunkFiles.Select(file => new StreamReader(file)).ToList();
 
@@ -137,14 +159,14 @@ namespace DataSorter
             }
 
             // Write the sorted records to the output file
-            using (var output = new FileStream(outputFile, FileMode.Create, FileAccess.Write))
+            using (var output = new FileStream(_outputFile, FileMode.Create, FileAccess.Write))
             using (var writer = new StreamWriter(output))
             {
                 while (heap.Size > 0)
                 {
                     // Remove the smallest record from the heap
                     var record = heap.ExtractMin();
-                    writer.WriteLine(record.ToString());
+                    writer.Write(record.ToString());
 
                     // Add the next line from the chunk that the record was read from to the heap
                     var chunkIndex = record.ChunkIndex;

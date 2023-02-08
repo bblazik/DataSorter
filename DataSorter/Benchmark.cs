@@ -1,70 +1,39 @@
 ﻿using System;
 using System.Diagnostics;
-using System.Threading;
 
 namespace DataGenerator
 {
-    public class Benchmark<T, T1, ReturnType>
-        where T : class
-        where T1 : struct
-        where ReturnType : class
+    public class Benchmark
     {
-        public static ReturnType Check(Func<T, T1, ReturnType> x, T param, T1 param1)
+        public static X3 Check<X1, X3>(Func<X1, X3> func, X1 param)
         {
-            Stopwatch stopWatch = new Stopwatch();
+            var stopWatch = new Stopwatch();
             stopWatch.Start();
-
-            ReturnType output = x(param, param1);
-
+            var output = func(param);
             stopWatch.Stop();
-            // Get the elapsed time as a TimeSpan value.
-            TimeSpan ts = stopWatch.Elapsed;
-
-            // Format and display the TimeSpan value. 
-            string elapsedTime = String.Format("{0:00}:{1:00}:{2:00}.{3:00}",
-                ts.Hours, ts.Minutes, ts.Seconds,
-                ts.Milliseconds / 10);
-            Console.WriteLine(x.Method.Name);
-            Console.WriteLine("RunTime " + elapsedTime);
+            var ts = stopWatch.Elapsed;
+            Display(func.Method.Name, ts);
 
             return output;
         }
 
-        public static void Check(Action<T, T1> x, T param, T1 param1)
+        public static void Check<X1>(Action<X1> func, X1 param)
         {
-            Stopwatch stopWatch = new Stopwatch();
+            var stopWatch = new Stopwatch();
             stopWatch.Start();
-
-            x(param, param1);
-
+            func(param);
             stopWatch.Stop();
-            // Get the elapsed time as a TimeSpan value.
-            TimeSpan ts = stopWatch.Elapsed;
-
-            // Format and display the TimeSpan value. 
-            string elapsedTime = String.Format("{0:00}:{1:00}:{2:00}.{3:00}",
-                ts.Hours, ts.Minutes, ts.Seconds,
-                ts.Milliseconds / 10);
-            Console.WriteLine(x.Method.Name);
-            Console.WriteLine("RunTime " + elapsedTime);
+            var ts = stopWatch.Elapsed;
+            Display(func.Method.Name, ts);
         }
 
-        public static void Check(Action<T, string> x, T param, string param1)
+        private static void Display(string methodName, TimeSpan ts)
         {
-            Stopwatch stopWatch = new Stopwatch();
-            stopWatch.Start();
-
-            x(param, param1);
-
-            stopWatch.Stop();
-            // Get the elapsed time as a TimeSpan value.
-            TimeSpan ts = stopWatch.Elapsed;
-
             // Format and display the TimeSpan value. 
-            string elapsedTime = String.Format("{0:00}:{1:00}:{2:00}.{3:00}",
+            var elapsedTime = String.Format("{0:00}:{1:00}:{2:00}.{3:00}",
                 ts.Hours, ts.Minutes, ts.Seconds,
                 ts.Milliseconds / 10);
-            Console.WriteLine(x.Method.Name);
+            Console.WriteLine(methodName);
             Console.WriteLine("RunTime " + elapsedTime);
         }
     }
