@@ -1,4 +1,6 @@
 ﻿using System;
+using System.IO;
+using System.Text;
 
 namespace DataSorter
 {
@@ -11,7 +13,7 @@ namespace DataSorter
 
         public int CompareTo(Record other)
         {
-            int nameCompare = string.Compare(this.Name.Split(' ')[0], other.Name.Split(' ')[0]);
+            int nameCompare = string.Compare(ReadStringUntilWhiteChar(this.Name), ReadStringUntilWhiteChar(other.Name));
             if (nameCompare == 0)
             {
                 return this.Number.CompareTo(other.Number);
@@ -34,6 +36,17 @@ namespace DataSorter
             {
                 throw new Exception("Invalid record parse" + e);
             }
+        }
+
+        public static string ReadStringUntilWhiteChar(string input)
+        {
+            StringBuilder sb = new StringBuilder();
+            int i = 0;
+            while (i < input.Length && !char.IsWhiteSpace(input[i]))
+            {
+                sb.Append(input[i++]);
+            }
+            return sb.ToString();
         }
     }
 }
